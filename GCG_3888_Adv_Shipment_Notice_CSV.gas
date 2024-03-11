@@ -1,0 +1,535 @@
+Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Variable.Global.sBatch.Declare(String)
+Variable.UDT.uRecords.Define("Vendor",String)
+Variable.UDT.uRecords.Define("Cust_PO",String,Customer_PO)
+Variable.UDT.uRecords.Define("Excel_Cust_PO",String,Excel_Cust_PO)
+Variable.UDT.uRecords.Define("Invoice",String)
+Variable.UDT.uRecords.Define("Tax_Type",String)
+Variable.UDT.uRecords.Define("Tax_PCT",Float)
+Variable.UDT.uRecords.Define("HST_No",String)
+Variable.UDT.uRecords.Define("Ship_Via",String)
+Variable.UDT.uRecords.Define("Ship_To",String,Customer)
+Variable.UDT.uRecords.Define("PO_Row",String,)
+Variable.UDT.uRecords.Define("Tax_Amt",Float)
+Variable.UDT.uRecords.Define("Ship_Date",String,Date_Ship)
+Variable.UDT.uRecords.Define("Vendor_Ref",String,Invoice)
+Variable.UDT.uRecords.Define("Packing_List",String,PCK_NO)
+Variable.UDT.uRecords.Define("Item_Number",String,Part)
+Variable.UDT.uRecords.Define("Qty_Ship",Float,Qty_Shipped)
+Variable.UDT.uRecords.Define("Unit_Cost",Float,Price)
+Variable.UDT.uRecords.Define("Total_Due",Float,Extension_Order)
+Variable.UDT.uRecords.Define("Order_No",String,Order_No)
+Variable.UDT.uRecords.Define("Order_Line",String,)
+Variable.UDT.uRecords.Define("Tax_State",String,Tax_State)
+Variable.UDT.uRecords.Define("Tax_1",String,Tax_1)
+Variable.UDT.uRecords.Define("Tax_2",String,Tax_2)
+Variable.UDT.uRecords.Define("Tax_3",String,Tax_3)
+Variable.UDT.uRecords.Define("Tax_4",String,Tax_4)
+Variable.UDT.uRecords.Define("Tax_5",String,Tax_5)
+Variable.UDT.uRecords.Define("Tax_6",String,Tax_6)
+Variable.UDT.uRecords.Define("Tax_7",String,Tax_7)
+Variable.UDT.uRecords.Define("Tax_8",String,Tax_8)
+Variable.UDT.uRecords.Define("Tax_9",String,Tax_9)
+Variable.UDT.uRecords.Define("Tax_10",String,Tax_10)
+Variable.UDT.uRecords.Define("Tax_Apply_1",String,Tax_Apply_1)
+Variable.UDT.uRecords.Define("Tax_Apply_2",String,Tax_Apply_2)
+Variable.UDT.uRecords.Define("Tax_Apply_3",String,Tax_Apply_3)
+Variable.UDT.uRecords.Define("Tax_Apply_4",String,Tax_Apply_4)
+Variable.UDT.uRecords.Define("Tax_Apply_5",String,Tax_Apply_5)
+Variable.UDT.uRecords.Define("Tax_Apply_6",String,Tax_Apply_6)
+Variable.UDT.uRecords.Define("Tax_Apply_7",String,Tax_Apply_7)
+Variable.UDT.uRecords.Define("Tax_Apply_8",String,Tax_Apply_8)
+Variable.UDT.uRecords.Define("Tax_Apply_9",String,Tax_Apply_9)
+Variable.UDT.uRecords.Define("Tax_Apply_10",String,Tax_Apply_10)
+Variable.UDT.uRecords.Define("Tax_Zone_1",String,Tax_Zone_1)
+Variable.UDT.uRecords.Define("Tax_Zone_2",String,Tax_Zone_2)
+Variable.UDT.uRecords.Define("Tax_Zone_3",String,Tax_Zone_3)
+Variable.UDT.uRecords.Define("Tax_Zone_4",String,Tax_Zone_4)
+Variable.UDT.uRecords.Define("Tax_Zone_5",String,Tax_Zone_5)
+Variable.UDT.uRecords.Define("Tax_Zone_6",String,Tax_Zone_6)
+Variable.UDT.uRecords.Define("Tax_Zone_7",String,Tax_Zone_7)
+Variable.UDT.uRecords.Define("Tax_Zone_8",String,Tax_Zone_8)
+Variable.UDT.uRecords.Define("Tax_Zone_9",String,Tax_Zone_9)
+Variable.UDT.uRecords.Define("Tax_Zone_10",String,Tax_Zone_10)
+Variable.uGlobal.uRecords.Declare("uRecords")
+
+Variable.UDT.Tax_Tables.Define("AUTH",String,AUTH)
+Variable.UDT.Tax_Tables.Define("Zone",String,ZONE)
+Variable.UDT.Tax_Tables.Define("Rate",Float,Rate)
+Variable.uGlobal.uTaxTables.Declare("Tax_Tables")
+Variable.Global.bHist.Declare(Boolean,False)
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+F.ODBC.Connection!conX.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+
+F.Intrinsic.Control.If(V.Caller.Hook,=,"34901")
+	V.Passed.000001.Set("Adv Ship")
+F.Intrinsic.Control.ElseIf(V.Caller.Hook,=,"34930")
+	'batch process script 3 button since sciprt 1 launches every cotton picking time ;)	
+	'grabbatch no
+	V.Global.sBatch.Set(V.Passed.009000)
+	Function.Intrinsic.Control.If(V.Global.sBatch.Trim,=,"")
+		F.Intrinsic.UI.Msgbox("Batch Number can not be retrieved.","Exiting...")
+		F.Intrinsic.Control.CallSub(Unload)
+	Function.Intrinsic.Control.EndIf
+	'get batch records
+	F.Intrinsic.UI.InvokeWaitDialog("Processing...")
+	V.uGlobal.uRecords.Redim(-1,-1)
+	V.uGlobal.uTaxTables.Redim(-1,-1)
+	F.Intrinsic.Control.CallSub(Grab_batch)
+	F.Intrinsic.Control.CallSub(Calc_tax)
+	F.Intrinsic.Control.CallSub(Write_excel)
+	Function.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.ElseIf(V.Caller.Hook,>=,"1000000")
+'	Ask for Batch
+	'we are going into history the only thing that will change is our query in the get batch information and that we are asking the user for a batch.
+	Function.Intrinsic.Control.CallSub(Askbatch)
+	V.Global.bHist.Set(True)
+	F.Intrinsic.UI.InvokeWaitDialog("Processing...")
+	'get batch records
+	V.uGlobal.uRecords.Redim(-1,-1)
+	V.uGlobal.uTaxTables.Redim(-1,-1)
+	F.Intrinsic.Control.CallSub(Grab_batch)
+	F.Intrinsic.Control.CallSub(Calc_tax)
+	F.Intrinsic.Control.CallSub(Write_excel)
+	Function.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_Adv_Shipment_Notice_CSV.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Main.End
+
+Program.Sub.Unload.Start
+F.Intrinsic.Control.SetErrorHandler("Unload_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+f.Intrinsic.UI.CloseWaitDialog
+F.ODBC.Connection!conX.Close
+f.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Unload_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_Adv_Shipment_Notice_CSV.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	f.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+Program.Sub.Unload.End
+
+Program.Sub.Grab_Batch.Start
+F.Intrinsic.Control.SetErrorHandler("Grab_Batch_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sSQL.Declare(String)
+V.Local.iC.Declare(Long)
+V.Local.iUB.Declare(Long)
+v.Local.iZone.Declare(Long)
+v.Local.sDate.Declare(String) 
+V.Local.iRow.Declare(Long)
+
+'this doesnt work, gives a sucka a type mismatch.... 
+'F.Intrinsic.Variable.SetUDTFieldDateMask(v.uGlobal.uRecords!Ship_Date,"MMDDYYYY")
+
+'need to get tax records from AR_Tax_Tables.
+F.ODBC.Connection!conX.OpenLocalRecordsetRO("rst","Select ZONE,AUTH,Rate From V_AR_TAX_TABLES")
+F.Intrinsic.Control.If(V.ODBC.conX!rst.EOF,=,False)
+	F.Intrinsic.Variable.LoadUDTFromRecordset("conX","rst","v.uglobal.uTaxTables",False)
+Function.Intrinsic.Control.EndIf
+F.ODBC.conX!rst.Close
+
+'grab all batch records for customer CAMXXx?
+'how to grab batch number?
+'batch is stored in IVC_Batch field within the Shipment_head and Shipment_Lines table.
+Function.Intrinsic.Control.If(V.Global.bHist,=,False)
+	F.Intrinsic.String.Build("Select SL.Order_NO, left(SL.Order_Rec, 3),SH.Customer_PO As Excel_Cust_PO,SH.Customer_PO,SL.Date_Ship,SL.Invoice,SL.PCK_NO,SL.Customer,SL.Customer_Part As Part,SL.Qty_Shipped,SL.Price,SL.Extension_Order,SL.Tax_State,SL.Tax_Zone_1,SL.Tax_Zone_2,SL.Tax_Zone_3,SL.Tax_Zone_4,SL.Tax_Zone_5,SL.Tax_Zone_6,SL.Tax_Zone_7,SL.Tax_Zone_8,SL.Tax_Zone_9,SL.Tax_Zone_10,SL.Tax_1,SL.TAX_2,SL.TAX_3,SL.TAX_4,SL.TAX_5,SL.TAX_6,SL.TAX_7,SL.TAX_8,SL.TAX_9,SL.TAX_10,SL.Tax_Apply_1,SL.Tax_Apply_2,SL.Tax_Apply_3,SL.Tax_Apply_4,SL.Tax_Apply_5,SL.Tax_Apply_6,SL.Tax_Apply_7,SL.Tax_Apply_8,SL.Tax_Apply_9,SL.Tax_Apply_10,cast(cast(Left(SL.ORDER_REC,3) as integer) as char(3)) as Order_Line From V_Shipment_Lines SL Left Join V_Shipment_Header SH On SH.Order_No = SL.Order_NO AND SH.Order_Suffix = SL.Order_Suffix Where SL.IVC_Batch ='{0}' And SL.Customer In ('CAM000','CAM001','CAM004','CAM005')",V.Global.sBatch,V.Local.sSQL)
+	F.Intrinsic.String.Build("{0} Order By SL.Order_NO,SL.Order_Rec,Sh.customer_Po,SL.PCK_NO",V.Local.sSQL,V.Local.sSQL)
+	F.ODBC.Connection!conX.OpenLocalRecordsetRO("RST",V.Local.sSQL)
+	F.Intrinsic.Control.If(V.ODBC.conX!RST.EOF,<>,True)
+		F.Intrinsic.Variable.LoadUDTFromRecordset("conx","rst","v.uglobal.uRecords",False)
+	Function.Intrinsic.Control.EndIf
+	F.ODBC.conX!RST.Close
+Function.Intrinsic.Control.Else
+ 	'since they getting a time out error (go f figure) we have to break this up and loop through this big ole boy
+	F.Intrinsic.String.Build("Select BaTCH,order_NO,Order_Suffix,SH.Customer_PO As Excel_Cust_PO,SH.Customer_PO,SH.PCK_NO From V_Order_Hist_Head As SH Where Batch ='{0}' And Customer In ('CAM000','CAM001','CAM004','CAM005')",V.Global.sBatch.Trim,V.Local.sSQL)
+	F.ODBC.Connection!conX.OpenLocalRecordsetRO("rst",V.Local.sSQL)
+	'loop through this
+	F.Intrinsic.Control.DoUntil(V.ODBC.conX!rst.EOF,=,True)
+		'manual this man
+		V.Local.sSQL.Set("Select SL.Order_NO,left(SL.Order_Line, 3) As Order_Rec,SL.Date_Shipped As Date_Ship,SL.Invoice,SL.Customer,SL.Customer_Part As Part,SL.Qty_Shipped,SL.Price,SL.Extension_Order,SL.Tax_State,SL.Tax_Zone_1,SL.Tax_Zone_2,SL.Tax_Zone_3,SL.Tax_Zone_4,SL.Tax_Zone_5,SL.Tax_Zone_6,SL.Tax_Zone_7,SL.Tax_Zone_8,SL.Tax_Zone_9,SL.Tax_Zone_10,SL.Tax_1,SL.TAX_2,")
+		F.Intrinsic.String.Build("{0} SL.TAX_3,SL.TAX_4,SL.TAX_5,SL.TAX_6,SL.TAX_7,SL.TAX_8,SL.TAX_9,SL.TAX_10,SL.Tax_Apply_1,SL.Tax_Apply_2,SL.Tax_Apply_3,SL.Tax_Apply_4,SL.Tax_Apply_5,SL.Tax_Apply_6,SL.Tax_Apply_7,",V.Local.sSQL,V.Local.sSQL)
+		F.Intrinsic.String.Build("{0} SL.Tax_Apply_8,SL.Tax_Apply_9,SL.Tax_Apply_10,Left(SL.Order_Line,3) as Order_Line From V_Order_Hist_Line SL Where Order_No = '{1}' And Order_Suffix ='{2}' Order By SL.Order_NO,SL.ORder_Suffix,SL.Order_Line",V.Local.sSQL,V.ODBC.conX!rst.FieldValTrim!Order_NO,v.ODBC.conX!rst.FieldValTrim!Order_Suffix,V.Local.sSQL)
+		 F.ODBC.Connection!conX.OpenLocalRecordsetRO("rstL",V.Local.sSQL)
+		F.Intrinsic.Control.DoUntil(V.ODBC.conX!rstL.EOF,=,True)
+			F.Intrinsic.Control.If(V.uGlobal.uRecords.UBound,=,-1)
+				V.uGlobal.uRecords.Redim(0,0)
+				V.Local.iUB.Set(0)
+			F.Intrinsic.Control.Else
+				F.Intrinsic.math.Add(V.uGlobal.uRecords.UBound,1,V.Local.iUB)
+				V.uGlobal.uRecords.RedimPreserve(0,V.Local.iUB)
+			F.Intrinsic.Control.EndIf
+			'put that up in it (slow but no matter which way we lay we still get sticked) 
+			V.uGlobal.uRecords(v.Local.iUB)!Cust_PO.Set(v.ODBC.conX!rst.FieldValTrim!Customer_PO)
+			V.uGlobal.uRecords(v.Local.iUB)!Excel_Cust_PO.Set(v.ODBC.conX!rst.FieldValTrim!Excel_Cust_PO)
+			V.uGlobal.uRecords(v.Local.iUB)!Packing_List.Set(v.ODBC.conX!rst.FieldValTrim!PCK_NO)
+			V.uGlobal.uRecords(v.Local.iUB)!Order_No.Set(v.ODBC.conX!rstL.FieldValTrim!Order_No)
+'			V.uGlobal.uRecords(v.Local.iUB)!Order_line.Set(v.ODBC.conX!rstL.FieldValTrim!Order_Rec)
+			'have to format the date for her now. HJE100-82020151526-5
+			F.Intrinsic.String.Format(v.ODBC.conX!rstL.FieldValTrim!Date_Ship,"MMDDYYYY",v.Local.sDate)			
+			V.uGlobal.uRecords(v.Local.iUB)!Ship_Date.Set(v.Local.sDate)
+			V.uGlobal.uRecords(v.Local.iUB)!Vendor_Ref.Set(v.ODBC.conX!rstL.FieldValTrim!Invoice)
+			'may seem weird but customer goes into ship to 			
+			V.uGlobal.uRecords(v.Local.iUB)!Ship_To.Set(v.ODBC.conX!rstL.FieldValTrim!Customer)
+			V.Local.iRow.Set(v.ODBC.conX!rstL.FieldValTrim!Order_Rec)
+			V.uGlobal.uRecords(v.Local.iUB)!Order_Line.Set(V.Local.iRow.String)
+			V.uGlobal.uRecords(v.Local.iUB)!Item_Number.Set(v.ODBC.conX!rstL.FieldValTrim!Part)
+			V.uGlobal.uRecords(v.Local.iUB)!Qty_Ship.Set(v.ODBC.conX!rstL.FieldValTrim!Qty_Shipped)
+			V.uGlobal.uRecords(v.Local.iUB)!Unit_Cost.Set(v.ODBC.conX!rstL.FieldValTrim!Price)
+			V.uGlobal.uRecords(v.Local.iUB)!Total_Due.Set(v.ODBC.conX!rstL.FieldValTrim!Extension_Order)
+			V.uGlobal.uRecords(v.Local.iUB)!Tax_State.Set(v.ODBC.conX!rstL.FieldValTrim!Tax_State)
+			f.Intrinsic.Control.For(v.Local.iZone,1,10,1)
+				v.uGlobal.uRecords(v.Local.iUB)!Tax_Zone_[v.local.iZone].set(v.ODBC.conX!rstL.FieldValTrim!Tax_Zone_[v.local.iZone])
+				v.uGlobal.uRecords(v.Local.iUB)!TAX_[v.local.iZone].set(v.ODBC.conX!rstL.FieldValTrim!Tax_[v.local.iZone])
+				v.uGlobal.uRecords(v.Local.iUB)!Tax_Apply_[v.local.iZone].set(v.ODBC.conX!rstL.FieldValLTrim!Tax_Apply_[v.local.iZone])
+			f.Intrinsic.Control.Next(v.Local.iZone)
+
+			F.ODBC.conX!rstL.MoveNext
+		F.Intrinsic.Control.loop
+		F.ODBC.conX!rstL.Close
+
+		F.ODBC.conX!rst.MoveNext
+	F.Intrinsic.Control.Loop
+	F.ODBC.conX!RST.Close
+'	V.local.sSQL.Set("Select SL.Order_NO,'''' + SL.Order_Line As Order_Rec,'''' + SH.Customer_PO As Excel_Cust_PO,SH.Customer_PO,SL.Date_Shipped As Date_Ship,'''' + SL.Invoice,'''' + SH.PCK_NO,SL.Customer,'''' + SL.Part,SL.Qty_Shipped,SL.Price,SL.Extension_Order,SL.Tax_State,SL.Tax_Zone_1,SL.Tax_Zone_2,SL.Tax_Zone_3,SL.Tax_Zone_4,SL.Tax_Zone_5,SL.Tax_Zone_6,SL.Tax_Zone_7,SL.Tax_Zone_8,SL.Tax_Zone_9,SL.Tax_Zone_10,SL.Tax_1,SL.TAX_2,SL.TAX_3,")
+'	F.Intrinsic.String.Build("{0}SL.TAX_4,SL.TAX_5,SL.TAX_6,SL.TAX_7,SL.TAX_8,SL.TAX_9,SL.TAX_10,SL.Tax_Apply_1,SL.Tax_Apply_2,SL.Tax_Apply_3,SL.Tax_Apply_4,SL.Tax_Apply_5,SL.Tax_Apply_6,SL.Tax_Apply_7,SL.Tax_Apply_8,SL.Tax_Apply_9,SL.Tax_Apply_10 From V_Order_Hist_Line SL Left Join V_Order_Hist_Head SH On SH.Order_No = SL.Order_NO Where Batch ='{1}' And Customer In('CAM000','CAM001','CAM004','CAM005') Order By SL.Order_NO,SL.Order_Line,Sh.customer_Po, SH.Pck_No",V.local.sSQL,V.Global.sBatch,V.Local.sSQL)
+Function.Intrinsic.Control.EndIf
+
+'loop through and get our PO informatio based on our order.
+'the linkage I assume((((())))??? is coming from Sales Ord Com table.
+'Taxes. And our
+'F.Intrinsic.Control.For(v.Local.ic,0,v.uGlobal.uRecords.UBound,1)
+	'so this is a wash.... don't know what ws thinkgin
+'	'grab the	 PO from the Order Number stored within Sales_Ord_Com table.
+'	F.Intrinsic.String.Build("Select PO,PO_Line From V_Sales_Ord_Com Where Order_No = '{0}' And Order_Line = '{1}'", v.uGlobal.uRecords(v.Local.iC)!Order_No,v.uGlobal.uRecords(v.Local.iC)!Order_Line, v.Local.sSQL)
+'	F.ODBC.Connection!conX.OpenLocalRecordsetRO("rst", v.Local.sSQL)
+'	F.Intrinsic.Control.If(v.ODBC.conX!rst.EOF,<>,True)
+'		F.Intrinsic.String.Build("Select Purchase_Order, Pur_Tax From V_PO_Lines Where Purchase_Order = '{0}' And Record_No = '{1}'", v.ODBC.conX!rst.FieldValTrim!PO,v.ODBC.conX!rst.FieldValTrim!PO_Line,v.Local.sSQL)
+'		F.ODBC.Connection!conX.OpenLocalRecordsetRO("rstPO",v.Local.sSQL)
+'		F.Intrinsic.Control.If(v.ODBC.conX!rstPO.EOF,<>,True)
+'			v.uGlobal.uRecords(v.Local.iC)!PO.Set(v.ODBC.conX!rstPO.FieldValTrim!Purchase_Order)
+'			v.uGlobal.uRecords(v.Local.iC)!Tax_Amt.set(v.ODBC.conX!rst.FieldValTrim!Pur_Tax)
+'		F.Intrinsic.Control.EndIf
+'		f.ODBC.conX!rstPO.Close 		
+'	f.Intrinsic.Control.endif
+'	F.ODBC.conX!rst.Close 	
+	'get our tax amount and figure out the percentage.
+'F.Intrinsic.Control.Next(v.Local.ic)
+
+'update shipt to value based on customer
+F.Intrinsic.Variable.UDTMultiSeekSet(V.uGlobal.uRecords!ship_To,"CAM000",V.uGlobal.uRecords!Ship_To,"Ontario")
+F.Intrinsic.Variable.UDTMultiSeekSet(V.uGlobal.uRecords!Ship_To,"CAM001",V.uGlobal.uRecords!Ship_To,"On for CTP")
+F.Intrinsic.Variable.UDTMultiSeekSet(V.uGlobal.uRecords!Ship_To,"CAM004",V.uGlobal.uRecords!Ship_To,"ON for SG")
+F.Intrinsic.Variable.UDTMultiSeekSet(V.uGlobal.uRecords!Ship_To,"CAM005",V.uGlobal.uRecords!Ship_To,"Sackville")
+
+'f.Intrinsic.Variable.UDTMultiSeekSetnoTrim(v.uGlobal.uRecords!ship_To,"CAM000",v.uGlobal.uRecords!Ship_To,"Ontario")
+'f.Intrinsic.Variable.UDTMultiSeekSetnotrim(v.uGlobal.uRecords!Ship_To,"CAM001",v.uGlobal.uRecords!Ship_To,"On for CTP")
+'f.Intrinsic.Variable.UDTMultiSeekSetnotrim(v.uGlobal.uRecords!Ship_To,"CAM004",v.uGlobal.uRecords!Ship_To,"ON for SG")
+'f.Intrinsic.Variable.UDTMultiSeekSetnotrim(v.uGlobal.uRecords!Ship_To,"CAM005",v.uGlobal.uRecords!Ship_To,"Sackville")
+
+F.Intrinsic.Variable.UDTSetMemberValue(V.uGlobal.uRecords!Vendor,"UHJI01")
+F.Intrinsic.Variable.UDTSetMemberValue(V.uGlobal.uRecords!Tax_Type,"EX")
+F.Intrinsic.Variable.UDTSetMemberValue(V.uGlobal.uRecords!Tax_PCT,"0")
+F.Intrinsic.Variable.UDTSetMemberValue(V.uGlobal.uRecords!Ship_Via,"NSSL")
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Grab_Batch_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_Adv_Shipment_Notice_CSV.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Grab_Batch.End
+
+Program.Sub.Write_Excel.Start
+F.Intrinsic.Control.SetErrorHandler("Write_Excel_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sDir.Declare(String)
+V.Local.sFile.Declare(String)
+V.Local.sSpreadsheet.Declare(String)
+V.Local.sElements.Declare(String)
+V.Local.bEx.Declare(Boolean)
+V.Local.iC.Declare(Long)
+V.Local.sDate.Declare(String)
+V.Local.sCustPO.Declare(String)
+V.Local.sHeader.Declare(String)
+V.Local.sRet.Declare(String)
+V.Local.iR.Declare(Long)
+V.Local.sRow.Declare(String)
+V.Local.bSpread.Declare(Boolean,False)
+V.Local.sList.Declare(String)
+v.Local.sPackingList.Declare(String) 
+v.Local.iPackNo.Declare(Long)
+v.Local.iP.Declare(Long)
+v.Local.sFileName.Declare(String)
+'directory: Global\Files\CamTran
+
+F.Intrinsic.String.Build("{0}\CamTran\",V.Caller.FilesDir,V.Local.sDir)
+F.Intrinsic.File.DirExists(V.Local.sDir,V.Local.bEx)
+F.Intrinsic.Control.If(V.Local.bEx,=,False)
+	F.Intrinsic.File.CreateDir(V.Local.sDir)
+Function.Intrinsic.Control.EndIf
+
+F.Intrinsic.String.Format(V.Ambient.Date,"MM-DD-YYYY",V.Local.sDate)
+
+'HJE100-92120150803-8
+'We are going to change the naming to be packing list specific and then within that cust po specific. 
+'we are going to add a -# to the filname and to the packing list nuber within the report.
+
+'header row of excel
+'V.Local.sHeader.Set("Vendor Number*!*PurchaseOrder Number*!*ShipmentDate*!*Vendor_Reference*!*TaxType*!*Tax PCT*!*Invoice#*!*HSTNumber*!*PackingSlipNumber*!*ShipVia*!*ShipToLocation*!*PurchaseOrder RowNumber*!*ItemNumber*!*Quantity Shipped*!*UnitCost*!*TaxAmt Due*!*TotalDue")
+'csv file now
+V.Local.sHeader.Set("Vendor Number,PurchaseOrder Number,ShipmentDate,Vendor_Reference,TaxType,Tax PCT,Invoice#,HSTNumber,PackingSlipNumber,ShipVia,ShipToLocation,PurchaseOrder RowNumber,ItemNumber,Quantity Shipped,UnitCost,TaxAmt Due,TotalDue")
+'elements listed in the order they should be listed in the file
+V.Local.sElements.Set("Vendor*!*Excel_Cust_PO*!*Ship_date*!*Vendor_Ref*!*Tax_Type*!*Tax_Pct*!*Invoice*!*Hst_NO*!*Packing_List*!*Ship_Via*!*Ship_To*!*Order_Line*!*Item_Number*!*Qty_Ship*!*Unit_Cost*!*Tax_Amt*!*Total_Due")
+
+'get unique cust po numbers
+f.Intrinsic.Variable.UDTToString(v.uGlobal.uRecords,"Cust_PO","*!*","",v.Local.sCustPO)
+F.Intrinsic.String.Split(V.Local.sCustPO,"*!*",V.Local.sCustPO)
+F.Intrinsic.String.RemoveArrayDuplicates(V.Local.sCustPO,V.Local.sCustPO)
+
+'get unique packing list numbers
+f.Intrinsic.Variable.UDTToString(v.uGlobal.uRecords,"Packing_List","*!*","",v.Local.sPackingList) 
+f.Intrinsic.String.Split(v.Local.sPackingList,"*!*",v.Local.sPackingList) 
+f.Intrinsic.string.RemoveArrayDuplicates(v.Local.sPackingList,v.Local.sPackingList)
+
+F.Intrinsic.Control.For(v.Local.iP,0,v.Local.sPackingList.UBound,1)
+		'on a new po set our po number to 1 
+		v.Local.iPackNo.Set(1)
+
+		F.Intrinsic.Control.For(V.Local.iC,V.Local.sCustPO.LBound,V.Local.sCustPO.UBound,1)
+			'HJE100-82020151526-5
+			'now need it to be a CSV file type, and also name changes. Needs to be preceeded by ASN_HJ  
+'			F.Intrinsic.String.Build("ASN_HJ{0}_{1}.csv",V.local.sDate,V.Local.sCustPO(v.Local.iC),V.Local.sFile)
+			'build file name being our packing list number
+			F.Intrinsic.String.Build("ASN_HJ{0}-{1}-{2}.csv",V.local.sDate,v.Local.sPackingList(v.Local.iP),v.Local.iPackNo,V.Local.sFileName)
+			'slist is used for our extended message box to be shown at the end of program execution
+
+			F.Intrinsic.String.Build("{0}{1}",V.Local.sDir,V.Local.sFileName,V.Local.sFile)
+			'find all elemetns with that customer po number
+			F.Intrinsic.Variable.UDTMultiSeek(v.uGlobal.uRecords!Packing_List,v.Local.sPackingList(v.Local.iP),V.uGlobal.uRecords!Cust_PO,V.Local.sCustPO(v.Local.iC),V.Local.sRet)
+			Function.Intrinsic.Control.If(V.Local.sRet.Trim,<>,"")
+				'split
+				F.Intrinsic.String.Split(V.Local.sRet,"*!*",V.Local.sRet)
+
+				F.Intrinsic.Control.For(V.Local.iR,0,V.Local.sRet.UBound,1)
+
+					'loop through UDT and build or file string for writespreadsheet row delimit $!$ column delimit *!*
+					'f.Intrinsic.Control.For(v.Local.iC,0,v.uGlobal.uRecords.UBound,1)
+					''	Function.Intrinsic.Control.If(v.Local.sSpreadsheet.Trim,<>,"")
+					''		f.Intrinsic.String.Build("{0}$!$",v.Local.sSpreadsheet,v.Local.sSpreadsheet)
+					''	Function.Intrinsic.Control.EndIf
+					'
+					'F.Intrinsic.Control.Next(v.Local.iC)
+					'if we are not in history we have to loop through and convert our date before we start
+					'convert our date to MMDDYYYY
+					f.Intrinsic.Control.If(v.Global.bHist,=,False)
+						f.Intrinsic.String.Format(v.uGlobal.uRecords(v.Local.sRet(v.Local.ir))!Ship_Date,"MMDDYYYY",v.uGlobal.uRecords(v.Local.sRet(v.Local.iR))!Ship_Date)		
+					Function.Intrinsic.Control.EndIf
+
+					'we must write our new packing list number to our packing list udt field. 
+					f.Intrinsic.String.Build("{0}-{1}",v.Local.sPackingList(v.Local.iP),v.Local.iPackNo,v.uGlobal.uRecords(v.Local.sRet(v.Local.iR))!Packing_List)
+
+					f.Intrinsic.Variable.UDTPositionToString(v.uGlobal.uRecords,v.Local.sElements,v.Local.sRet(v.Local.iR),",",v.Local.sRow)
+
+					F.Intrinsic.Control.If(V.Local.sSpreadsheet.Trim,=,"")
+						'put our header first
+						V.Local.sSpreadsheet.Set(V.Local.sRow)
+					Function.Intrinsic.Control.Else
+						F.Intrinsic.String.Build("{0}{2}{1}",V.Local.sSpreadsheet,V.Local.sRow,v.Ambient.NewLine,v.Local.sSpreadsheet)
+					Function.Intrinsic.Control.EndIf
+				F.Intrinsic.Control.Next(V.Local.iR)
+
+				Function.Intrinsic.Control.If(V.Local.sSpreadsheet.Trim,=,"")
+					Function.Intrinsic.Debug.SetLA("Spreadsheet was blank.")
+					Function.Intrinsic.Control.CallSub(Unload)
+				Function.Intrinsic.Control.EndIf
+				'does excel exist?
+				'no longer needed
+			'	F.Automation.MSExcel.CheckPresence(V.Local.bEx)
+			'	F.Intrinsic.Control.If(V.Local.bEx,=,False)
+			'		'Excel not found
+			'		F.Intrinsic.UI.Msgbox("Excel must be installed to create the excel file.","Exiting...")
+			'		F.Intrinsic.Control.CallSub(Unload)
+			'	Function.Intrinsic.Control.Else
+				'does a file same name exist is it locked?
+				F.Intrinsic.File.Exists(V.Local.sFile,V.Local.bEx)
+				Function.Intrinsic.Control.If(V.Local.bEx,=,True)
+					'is it locked?
+					F.Intrinsic.File.IsFileLocked(V.Local.sFile,V.Local.bEx)
+					F.Intrinsic.Control.If(V.Local.bEx,=,True)
+						F.Intrinsic.String.Build("File {0} is locked or open. Please close file and try again.",V.Local.sFile,V.Local.sError)
+						F.Intrinsic.UI.Msgbox(V.Local.sError,"File Error")
+						F.Intrinsic.Control.CallSub(Unload)
+					Function.Intrinsic.Control.Else
+						F.Intrinsic.File.DeleteFile(V.Local.sFile)
+					Function.Intrinsic.Control.EndIf
+				Function.Intrinsic.Control.EndIf
+				F.Intrinsic.String.Build("{0}{2}{1}",V.Local.sHeader,V.Local.sSpreadsheet,v.Ambient.NewLine,v.Local.sSpreadsheet)
+			'		F.Automation.MSExcel.WriteSpreadsheet(V.Local.sFile,V.Local.sSpreadsheet)
+				f.Intrinsic.File.String2File(v.Local.sFile,v.Local.sSpreadsheet)
+				F.Intrinsic.String.Build("{0}{1}{2}",V.Local.sList,V.Local.sFileName,V.Ambient.NewLine,V.Local.sList)
+				'so we only show the message box once for all spreads
+				V.Local.bSpread.Set(True)
+				'clear out spreadsheet
+				V.Local.sSpreadsheet.Set("")
+			'	Function.Intrinsic.Control.EndIf
+				'add 1 to our list naming. 
+				f.Intrinsic.Math.Add(v.Local.iPackNo,1,v.Local.iPackNo)
+			Function.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.Next(V.Local.iC)
+
+f.Intrinsic.Control.Next(v.Local.iP)
+
+F.Intrinsic.Control.If(V.Local.bSpread,=,True)
+	F.Intrinsic.UI.MsgboxExt("CSV File(s) Created",V.local.sList)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Write_Excel_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_Adv_Shipment_Notice_CSV.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Write_Excel.End
+
+Program.Sub.Calc_Tax.Start
+F.Intrinsic.Control.SetErrorHandler("Calc_Tax_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+v.Local.fTaxTotal.Declare(Float)
+v.Local.fTemp.Declare(Float)
+v.Local.iT.Declare(Long)
+v.Local.iC.Declare(Long)
+v.Local.sRet.Declare(String)
+v.Local.iR.Declare(Long)
+
+'loop through the whole thing
+F.Intrinsic.Control.For(V.Local.iC,0,V.uGlobal.uRecords.UBound,1)
+	'each record check and see if we have to apply tax
+	f.Intrinsic.Control.For(v.Local.iT,1,10,1)
+		'check and see if the apply tax is checked, if it is go further if not just go to the next
+		f.Intrinsic.Control.If(V.uGlobal.uRecords(v.Local.iC)!Tax_Apply_[v.local.iT],=,"Y")
+			'so now we have ot get the authority and the other thing from the our tax table udt.
+			'TAX STATE IS THE ZONE AND THE AUTH IS THE TAX_x FIELDS.
+			F.Intrinsic.Variable.udtmultiseek(V.uGlobal.uTaxTables!Zone,V.uGlobal.uRecords(v.Local.iC)!Tax_STATE,V.uGlobal.uTaxTables!AUTH,V.uGlobal.uRecords(V.Local.iC)!Tax_[V.LOCAL.IT],V.Local.sRet)
+			f.Intrinsic.Control.If(V.Local.sRet.Trim,<>,"")
+				f.Intrinsic.String.Split(V.Local.sRet.Trim,"*!*",V.Local.sret)
+
+
+
+				'hope we only have one. just in case
+				F.Intrinsic.Math.Mult(v.uGlobal.uRecords(v.Local.iC)!Total_Due,v.uGlobal.uTaxTables(v.Local.sRet(0))!Rate,v.Local.fTemp)
+				f.Intrinsic.Math.Add(v.Local.fTaxTotal,v.Local.fTemp,v.Local.fTaxTotal)
+			F.Intrinsic.Control.EndIf
+		Function.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Next(v.Local.iT)
+	'went through all ten taxes save our tax total to our udt
+	'round total tax
+	f.Intrinsic.Math.Round(v.Local.fTaxTotal,2,v.Local.fTaxTotal)
+	v.uGlobal.uRecords(v.Local.ic)!Tax_Amt.Set(v.Local.fTaxTotal)
+	'also add tax total to toatl due
+	f.Intrinsic.Math.Add(v.uGlobal.uRecords(v.Local.iC)!Total_Due,v.Local.fTaxTotal,v.uGlobal.uRecords(v.Local.iC)!Total_Due)
+	'clear it out
+	v.Local.fTaxTotal.Set(0)
+F.Intrinsic.Control.Next(V.Local.iC)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Calc_Tax_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_Adv_Shipment_Notice_CSV.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Calc_Tax.End
+
+Program.Sub.AskBatch.Start
+F.Intrinsic.Control.SetErrorHandler("AskBatch_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sTitle.Declare(String)
+V.Local.iWidth.Declare(Long)
+V.Local.sRet.Declare(String)
+
+F.Intrinsic.UI.SetBrowserHotTypeAhead(True)
+'get batch
+F.Intrinsic.String.Split("Batch Number*!*Date Invoiced","*!*",v.Local.sTitle)
+F.Intrinsic.String.Split("2500*!*2500","*!*",v.Local.iWidth)
+
+F.Intrinsic.UI.Browser("Select a Batch Record","conX","Select Distinct Batch, Date_Invoice From V_Order_Hist_Head Where Customer In('CAM000','CAM001','CAM004','CAM005') Order BY Date_Invoice DESC",v.Local.sTitle,v.Local.iWidth,3000,7000,v.Local.sret)
+
+Function.Intrinsic.Control.If(v.Local.sRet.Trim,<>,"***CANCEL***")
+	F.Intrinsic.String.Split(v.Local.sRet,"*!*",v.Local.sRet)
+	V.Global.sBatch.Set(v.Local.sRet(0).Trim)
+	F.Intrinsic.Control.If(V.Global.sBatch.Trim,=,"")
+		F.Intrinsic.Control.CallSub(Unload)
+	Function.Intrinsic.Control.EndIf
+Function.Intrinsic.Control.Else
+	F.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("AskBatch_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_Adv_Shipment_Notice_CSV.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.AskBatch.End
+
+Program.Sub.Comments.Start
+${$0$}$GCG_Adv_Shipment_Notice_XLS$}$TRT$}$8/12/2015
+${$1$}$$}$$}$1$}$34901$}$Populate Hook$}$9/4/2015 7:45:30 AM$}$
+${$1$}$$}$$}$0$}$34930$}$Script 3 button$}$9/4/2015 7:45:10 AM$}$
+${$3$}$0$}$$}$0$}$-1$}$$}$12:00:00 AM$}$Quote 6830
+
+Creating excel file to send to them
+
+coded trt
+
+8/12/15
+
+'MODIFY run and tell that!
+switched it up to run on script 3 button since script 1 gets called every time.
+
+HJE100-82020151526-5
+
+
+Modify yet again since CamTran said it needs to be a CSV file and they need to change the name of the file being uploaded. 
+
+Program.Sub.Comments.End
